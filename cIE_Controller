@@ -1,0 +1,151 @@
+'***********************
+'IE Controller
+'10/02/2017
+'Ben terry
+'***********************
+
+Option Explicit
+    
+Public ie As InternetExplorer
+Dim framesCol As Object
+Dim objCollection As Object, objElement As Object
+Dim objFrame As Object
+Public html As New HTMLDocument
+
+
+Public Function cIE_Controller_Constructor()
+
+    Set ie = CreateObject("InternetExplorer.Application")
+    ie.Visible = True
+
+End Function
+
+Public Function NavigateTo(url As String)
+    'Move to the url
+    'IE.Navigate "http://nrf/NRF/Login/ProcessLogin.asp"
+    ie.Navigate url
+    'wait until the page loads. Not always sufficient
+    Do While ie.Busy
+            DoEvents
+    Loop
+    Application.Wait (Now + TimeValue("0:00:3"))
+    Set html = ie.Document
+
+End Function
+
+
+Public Function ClickOnObject(tag As String, objAttribute As String, value As String)
+    
+    Set framesCol = ie.Document.Frames
+    'Debug.Print "The number of frames is: ", framesCol.Length
+    Dim tempObj As Object
+    Dim i As Integer
+    
+    'Debug.Print TypeName(framesCol)
+    
+    'Debug.Print "Test 1"
+    'Loop through the frame in the doc. If there are no frames just look through the default doc
+    If framesCol.Length > 0 Then
+        'Debug.Print "Test 1.5"
+        'Check each frame in the doc
+        For i = 0 To framesCol.Length - 1
+            'Debug.Print "Test 2"
+            'Debug.Print "Test 3"
+            'Set the element collection for current frame
+            Set objCollection = framesCol(i).Document.getElementsByTagName(tag)
+            'Debug.Print "The object collection length is: ", objCollection.Length
+        'Loop through the objects until we find the correct link and click it
+            For Each objElement In objCollection
+                If objAttribute = "href" Then
+                    'Debug.Print objElement.href
+                    'Debug.Print objElement.Target
+                End If
+                'Debug.Print objElement.ID, objElement.Value, objElement.Name
+                'Debug.Print objElement
+                'Debug.Print CallByName(objElement, objAttribute, VbGet)
+                'Debug.Print TypeName(objElement.ID)
+                If CallByName(objElement, objAttribute, VbGet) = value Then
+                    'Debug.Print "Found Element"
+                    'objElement.Checked = True
+                    Set tempObj = objElement
+                End If
+            Next objElement
+        Next i
+    Else
+        'No frames, loop through the elements without looking at frames at all
+        Set objCollection = ie.Document.getElementsByTagName(tag)
+        'Debug.Print "Test 3"
+        'Debug.Print "The object collection length is: ", objCollection.Length
+        'Loop through the objects until we find the correct link and click it
+        For Each objElement In objCollection
+            If objAttribute = "href" Then
+                'Debug.Print objElement.href
+                'Debug.Print objElement.Target
+            End If
+            'Debug.Print objElement.ID, objElement.Value, objElement.Name
+            'Debug.Print objElement
+            'Debug.Print CallByName(objElement, objAttribute, VbGet)
+            'Debug.Print TypeName(objElement.ID)
+            If CallByName(objElement, objAttribute, VbGet) = value Then
+                'Debug.Print "Found Element"
+                'objElement.Checked = True
+                Set tempObj = objElement
+            End If
+        Next objElement
+    End If
+    If Not tempObj Is Nothing Then
+            tempObj.Click
+            'Debug.Print "Found Element"
+            Do While ie.Busy
+                DoEvents
+            Loop
+        End If
+End Function
+
+Public Function PrintElements()
+    Set objCollection = ie.Document.getElementsByTagName("a")
+    
+    For Each objElement In objCollection
+        Debug.Print objElement.href
+    Next objElement
+End Function
+
+Public Function ClearSQOFields(state As String)
+    Set framesCol = ie.Document.Frames
+    Dim i As Integer
+    
+    For i = 0 To framesCol.Length - 1
+        If framesCol(i).Name = "main" Then
+            Debug.Print framesCol(i).Name
+            'Debug.Print "Value of BidStartMonth: ", framesCol(i).Document.getElementsByName("BidStartMonth").value
+            'Looping through all elements to find them and then to compare them is inefficient but I don't know how to change it
+            Set objCollection = framesCol(i).Document.getElementsByTagName("input")
+            For Each objElement In objCollection
+                If objElement.Name = "BidStartMonth" _
+                Or objElement.Name = "BidStartDay" _
+                Or objElement.Name = "BidStartYear" _
+                Or objElement.Name = "BidEndYear" _
+                Or objElement.Name = "BidEndMonth" _
+                Or objElement.Name = "BidEndDay" _
+                Or objElement.Name = "Npa" _
+                Or objElement.Name = "Nxx" _
+                Or objElement.Name = "Line" _
+                Or objElement.Name = "CompanyId" _
+                Or objElement.Name = "CountyId" _
+                Or objElement.Name = "PsapId" _
+                Or objElement.Name = "ESSId" Then
+                    objElement.value = ""
+                End If
+            Next objElement
+            Set objCollection = framesCol(i).Document.getElementsByTagName("select")
+            For Each objElement In objCollection
+                If objElement.Name = "State_list" Then
+                    
+                End If
+                
+            Next objElement
+        End If
+    Next i
+End Function
+
+
