@@ -1,151 +1,224 @@
-'***********************
-'IE Controller
-'10/02/2017
-'Ben terry
-'***********************
-
 Option Explicit
-    
-Public ie As InternetExplorer
-Dim framesCol As Object
-Dim objCollection As Object, objElement As Object
-Dim objFrame As Object
-Public html As New HTMLDocument
+Option Compare Text
+
+Sub OptionsMacro()
+
+On Error GoTo ErrorHandler
+'Create and initialize a new instead of the Internet Explorer controller class
+Dim IEController As cIE_Controller
 
 
-Public Function cIE_Controller_Constructor()
+'set up the base values for the IE controller object. VBA doenst have real constructors which is why this is a separate method from NEW
+Set IEController = New cIE_Controller
+IEController.cIE_Controller_Constructor
 
-    Set ie = CreateObject("InternetExplorer.Application")
-    ie.Visible = True
+'Debug.Print "This si the text: " & Worksheets(1).Cells(11, 2).value
 
-End Function
+getBasicData IEController, Worksheets(1).Cells(11, 2).Text
+getOptionsData IEController, Worksheets(1).Cells(11, 2).Text
+'Application.Wait (Now + TimeValue("0:00:10"))
+IEController.ie.Quit
 
-Public Function NavigateTo(url As String)
-    'Move to the url
-    'IE.Navigate "http://nrf/NRF/Login/ProcessLogin.asp"
-    ie.Navigate url
-    'wait until the page loads. Not always sufficient
-    Do While ie.Busy
-            DoEvents
-    Loop
-    Application.Wait (Now + TimeValue("0:00:3"))
-    Set html = ie.Document
+Exit Sub
+ErrorHandler:
+    MsgBox "Encountered unknown error. Show Ben what happened."
+    Exit Sub
+End Sub
 
-End Function
+'subroutine to get the options data
+Sub getOptionsData(IEController As cIE_Controller, tckr As String)
+Dim webText As String
+Dim tempString As String
+Dim findVals(16) As String
+Dim theVals() As String
+Dim fVal As Variant
 
+Dim i As Integer, j As Integer, k As Integer, startPos As Integer
+Dim tempText As String
 
-Public Function ClickOnObject(tag As String, objAttribute As String, value As String)
-    
-    Set framesCol = ie.Document.Frames
-    'Debug.Print "The number of frames is: ", framesCol.Length
-    Dim tempObj As Object
-    Dim i As Integer
-    
-    'Debug.Print TypeName(framesCol)
-    
-    'Debug.Print "Test 1"
-    'Loop through the frame in the doc. If there are no frames just look through the default doc
-    If framesCol.Length > 0 Then
-        'Debug.Print "Test 1.5"
-        'Check each frame in the doc
-        For i = 0 To framesCol.Length - 1
-            'Debug.Print "Test 2"
-            'Debug.Print "Test 3"
-            'Set the element collection for current frame
-            Set objCollection = framesCol(i).Document.getElementsByTagName(tag)
-            'Debug.Print "The object collection length is: ", objCollection.Length
-        'Loop through the objects until we find the correct link and click it
-            For Each objElement In objCollection
-                If objAttribute = "href" Then
-                    'Debug.Print objElement.href
-                    'Debug.Print objElement.Target
-                End If
-                'Debug.Print objElement.ID, objElement.Value, objElement.Name
-                'Debug.Print objElement
-                'Debug.Print CallByName(objElement, objAttribute, VbGet)
-                'Debug.Print TypeName(objElement.ID)
-                If CallByName(objElement, objAttribute, VbGet) = value Then
-                    'Debug.Print "Found Element"
-                    'objElement.Checked = True
-                    Set tempObj = objElement
-                End If
-            Next objElement
-        Next i
-    Else
-        'No frames, loop through the elements without looking at frames at all
-        Set objCollection = ie.Document.getElementsByTagName(tag)
-        'Debug.Print "Test 3"
-        'Debug.Print "The object collection length is: ", objCollection.Length
-        'Loop through the objects until we find the correct link and click it
-        For Each objElement In objCollection
-            If objAttribute = "href" Then
-                'Debug.Print objElement.href
-                'Debug.Print objElement.Target
-            End If
-            'Debug.Print objElement.ID, objElement.Value, objElement.Name
-            'Debug.Print objElement
-            'Debug.Print CallByName(objElement, objAttribute, VbGet)
-            'Debug.Print TypeName(objElement.ID)
-            If CallByName(objElement, objAttribute, VbGet) = value Then
-                'Debug.Print "Found Element"
-                'objElement.Checked = True
-                Set tempObj = objElement
-            End If
-        Next objElement
+'Move to the web page we want
+tempString = "https://finance.yahoo.com/quote/" & tckr & "/options?p=" & tckr
+IEController.NavigateTo (tempString)
+setOptionsArray findVals
+webText = IEController.html.all(73).innerText
+'Worksheets(1).Cells(1, 10).value = webText
+startPos = InStr(webText, "Callsfor")
+'cut out most of the junk before it
+tempText = Mid(webText, startPos, 9000)
+'split the values we want by the new line charachter
+theVals = Split(tempText, vbCrLf)
+
+Worksheets(1).Cells(10, 12).value = "Calls"
+Worksheets(1).Cells(10, 26).value = "Puts"
+For k = 0 To 11
+    Worksheets(1).Cells(11, 18 + k).value = findVals(k)
+    Worksheets(1).Cells(11, 6 + k).value = findVals(k)
+Next k
+
+k = 12
+j = 0
+For Each fVal In theVals
+    'Debug.Print Mid(fVal, 1, Len(tckr))
+    'Debug.Print tckr
+    If Mid(fVal, 1, 7) = "putsfor" Then
+            k = 12
+            j = 12
     End If
-    If Not tempObj Is Nothing Then
-            tempObj.Click
-            'Debug.Print "Found Element"
-            Do While ie.Busy
-                DoEvents
-            Loop
+    tempText = tckr & "1"
+    'Debug.Print tempText
+    If Mid(fVal, 1, Len(tckr) + 1) = (tckr & "1") Then 'Options compare text at the top makes this ignore case sensitivity
+        'Debug.Print "In if statement"
+        'Debug.Print fVal
+        'contract name
+        Worksheets(1).Cells(k, 6 + j).value = Mid(fVal, 1, Len(tckr) + 15)
+        'last trade date
+        startPos = InStr(fVal, "EDT")
+        Debug.Print fVal
+        Worksheets(1).Cells(k, 7 + j).value = Mid(fVal, Len(tckr) + 16, startPos + 3 - Len(tckr) - 16)
+        'strike
+        tempText = Mid(fVal, startPos + 3) 'remove everything up to the strike price from the string because it's easier for me to think about this way
+        startPos = InStr(tempText, ".")
+        'tempText = Mid(fVal, Len(tckr) + 38, startPos - Len(tckr) + 40)
+        Worksheets(1).Cells(k, 8 + j).value = Mid(tempText, 1, startPos + 2)
+        'last price
+        'Debug.Print tempText
+        tempText = Mid(tempText, startPos + 3)
+        'Debug.Print tempText
+        startPos = InStr(tempText, ".")
+        Worksheets(1).Cells(k, 9 + j).value = Mid(tempText, 1, startPos + 2)
+        'bid
+        tempText = Mid(tempText, startPos + 3)
+        startPos = InStr(tempText, ".")
+        Worksheets(1).Cells(k, 10 + j).value = Mid(tempText, 1, startPos + 2)
+        'ask
+        tempText = Mid(tempText, startPos + 3)
+        startPos = InStr(tempText, ".")
+        Worksheets(1).Cells(k, 11 + j).value = Mid(tempText, 1, startPos + 2)
+        'change
+        tempText = Mid(tempText, startPos + 3)
+        startPos = InStr(tempText, ".")
+        Worksheets(1).Cells(k, 12 + j).value = Mid(tempText, 1, startPos + 2)
+        '% change
+        tempText = Mid(tempText, startPos + 3)
+        startPos = InStr(tempText, "%")
+        If startPos = Len(tempText) Then
+            startPos = InStr(tempText, "-")
         End If
-End Function
-
-Public Function PrintElements()
-    Set objCollection = ie.Document.getElementsByTagName("a")
+        'Debug.Print "Start Pos is: " & startPos
+        'Debug.Print "StringLen is: " & Len(tempText)
+        'Debug.Print tempText
+        'Debug.Print startPos & " This is the start pos"
+        Worksheets(1).Cells(k, 13 + j).value = Mid(tempText, 1, startPos)
+        'volume
+        tempText = Mid(tempText, startPos + 1)
+        'startPos = InStr(tempText, "%")
+        Worksheets(1).Cells(k, 14 + j).value = "Dunno how to get yet"
+        'Open Interest
+        Worksheets(1).Cells(k, 15 + j).value = "Dunno how to get yet"
+        'Implied Volatility
+        Worksheets(1).Cells(k, 16 + j).value = "Dunno how to get yet"
+        
+        k = k + 1
+    End If
     
-    For Each objElement In objCollection
-        Debug.Print objElement.href
-    Next objElement
+Next fVal
+
+End Sub
+
+
+'subroutine to get the basic data surrounding the stock. Not options pricing
+Sub getBasicData(IEController As cIE_Controller, tckr As String)
+Dim webText As String
+Dim tempString As String
+Dim findVals(16) As String
+Dim theVals() As String
+Dim fVal As Variant
+
+tempString = "https://finance.yahoo.com/quote/" & tckr & "?p=" & tckr
+'Debug.Print tempString
+'Move to the web page we want
+IEController.NavigateTo (tempString)
+Dim i As Integer, j As Integer, k As Integer, startPos As Integer
+Dim tempText As String
+'i = 1
+
+'this is the body that contains the needed text values
+webText = IEController.html.all(73).innerText
+Worksheets(1).Cells(i + 1, 1).value = webText
+Debug.Print webText
+'set the values in the array
+setArray findVals
+
+
+'Find the current price
+'Find where the info starts
+startPos = InStr(webText, "NasdaqGS - NasdaqGS Real Time Price. Currency in USD")
+If startPos = 0 Then
+    startPos = InStr(webText, "NYSE - NYSE Delayed Price")
+End If
+'cut out most of the junk before it
+tempText = Mid(webText, startPos, 200)
+'split the values we want by the new line charachter
+theVals = Split(tempText, vbCrLf, 15)
+'set value in worksheet
+Worksheets(1).Cells(14, 3).value = Mid(theVals(8), 1, 6)
+Worksheets(1).Cells(14, 2).value = "Current Price"
+
+
+'Find where the remaining info starts
+startPos = InStr(webText, findVals(0))
+'cut out most of the junk before it
+tempText = Mid(webText, startPos, 500)
+'split the values we want by the new line charachter
+theVals = Split(tempText, vbCrLf)
+
+'remove some white spaces in the array
+For k = 8 To 15
+    theVals(k) = theVals(k + 2)
+Next k
+
+For k = 0 To 15
+    Worksheets(1).Cells(k + 15, 2).value = findVals(k)
+    Worksheets(1).Cells(k + 15, 3).value = Replace(theVals(k), findVals(k), "")
+Next k
+
+'Worksheets(1).Cells(1, 1).value = webText
+
+End Sub
+
+
+
+
+'vba is dumb. Can't set all values at once because Array(values) returns type variant
+Function setArray(ByRef myArray() As String)
+    myArray(0) = "Previous Close"
+    myArray(1) = "Open"
+    myArray(2) = "Bid"
+    myArray(3) = "Ask"
+    myArray(4) = "Day's Range"
+    myArray(5) = "52 Week Range"
+    myArray(6) = "Volume"
+    myArray(7) = "Avg. Volume"
+    myArray(8) = "Market Cap"
+    myArray(9) = "Beta (3Y Monthly)"
+    myArray(10) = "PE Ratio (TTM)"
+    myArray(11) = "EPS (TTM)"
+    myArray(12) = "Earnings Date"
+    myArray(13) = "Forward Dividend & Yield"
+    myArray(14) = "Ex-Dividend Date"
+    myArray(15) = "1y Target Est"
 End Function
 
-Public Function ClearSQOFields(state As String)
-    Set framesCol = ie.Document.Frames
-    Dim i As Integer
-    
-    For i = 0 To framesCol.Length - 1
-        If framesCol(i).Name = "main" Then
-            Debug.Print framesCol(i).Name
-            'Debug.Print "Value of BidStartMonth: ", framesCol(i).Document.getElementsByName("BidStartMonth").value
-            'Looping through all elements to find them and then to compare them is inefficient but I don't know how to change it
-            Set objCollection = framesCol(i).Document.getElementsByTagName("input")
-            For Each objElement In objCollection
-                If objElement.Name = "BidStartMonth" _
-                Or objElement.Name = "BidStartDay" _
-                Or objElement.Name = "BidStartYear" _
-                Or objElement.Name = "BidEndYear" _
-                Or objElement.Name = "BidEndMonth" _
-                Or objElement.Name = "BidEndDay" _
-                Or objElement.Name = "Npa" _
-                Or objElement.Name = "Nxx" _
-                Or objElement.Name = "Line" _
-                Or objElement.Name = "CompanyId" _
-                Or objElement.Name = "CountyId" _
-                Or objElement.Name = "PsapId" _
-                Or objElement.Name = "ESSId" Then
-                    objElement.value = ""
-                End If
-            Next objElement
-            Set objCollection = framesCol(i).Document.getElementsByTagName("select")
-            For Each objElement In objCollection
-                If objElement.Name = "State_list" Then
-                    
-                End If
-                
-            Next objElement
-        End If
-    Next i
+Function setOptionsArray(ByRef myArray() As String)
+    myArray(0) = "Contract Name"
+    myArray(1) = "Last Trade Date"
+    myArray(2) = "Strike"
+    myArray(3) = "Last Price"
+    myArray(4) = "Bid"
+    myArray(5) = "Ask"
+    myArray(6) = "Change"
+    myArray(7) = "% Change"
+    myArray(8) = "Volume"
+    myArray(9) = "Open Interest"
+    myArray(10) = "Implied Volatility"
 End Function
-
-
